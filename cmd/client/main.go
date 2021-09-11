@@ -16,21 +16,26 @@ type Client struct {
 	Age  int
 }
 
+var (
+	clientOpts Client
+)
+
+func init() {
+	clientOpts.fill()
+}
+
 func (c *Client) fill() {
 	flag.IntVar(&c.Port, "port", 5000, "gRPC port")
 	flag.StringVar(&c.Name, "name", "", "User name for the message")
 	flag.IntVar(&c.Age, "age", 0, "User age for the message")
-
-	flag.Parse()
 }
 
 func main() {
-	c := Client{}
-	c.fill()
+	flag.Parse()
 
 	var callOpts []grpc.CallOption
 
-	serverAddr := fmt.Sprintf("localhost:%d", c.Port)
+	serverAddr := fmt.Sprintf("localhost:%d", clientOpts.Port)
 	client, err := grpc.Dial(serverAddr, grpc.WithInsecure())
 	if err != nil {
 		fmt.Printf("Error while dialing server: %v\n", err)
@@ -38,8 +43,13 @@ func main() {
 	}
 	defer client.Close()
 
+	message := &proto.UserInfo{
+		Name: clientOpts.Name,
+		Age:  int32(clientOpts.Age),
+	}
+
 	cc := proto.NewGreetingClient(client)
-	resp, err := cc.Hello(context.TODO(), &proto.UserInfo{Name: c.Name, Age: int32(c.Age)}, callOpts...)
+	resp, err := cc.Hello(context.TODO(), message, callOpts...)
 	if err != nil {
 		fmt.Printf("Error while executing gRPC request: %v\n", err)
 		os.Exit(1)

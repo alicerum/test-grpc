@@ -1,11 +1,11 @@
-all: proto server client
+all: server client
 
 .PHONY: server
-server:
+server: proto
 	go build ./cmd/server/
 
 .PHONY: client
-client:
+client: proto
 	go build ./cmd/client/
 
 clean:
