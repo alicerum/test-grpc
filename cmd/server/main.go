@@ -2,14 +2,20 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
-	"strconv"
 
 	"github.com/alicerum/test-grpc/pkg/proto"
+	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 )
+
+type RootOptions struct {
+	rootCmd *cobra.Command
+	port    int
+}
 
 type greetingImpl struct {
 	proto.UnimplementedGreetingServer
@@ -25,28 +31,40 @@ func (s greetingImpl) Hello(ctx context.Context, in *proto.UserInfo) (*proto.Res
 	return result, nil
 }
 
-func main() {
-	if len(os.Args) != 2 {
-		fmt.Println("Wrong number of arguments")
-		os.Exit(1)
+func (c *RootOptions) runServer(cmd *cobra.Command, args []string) error {
+	if c.port == -1 {
+		return errors.New("Must set up port")
 	}
 
-	port, err := strconv.ParseInt(os.Args[1], 10, 32)
+	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", c.port))
 	if err != nil {
-		fmt.Printf("Wrong port %q\n", os.Args[1])
-	}
-
-	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", port))
-	if err != nil {
-		fmt.Printf("Error while creating listener: %v", err)
-		os.Exit(1)
+		return fmt.Errorf("Error while creating listener: %v", err)
 	}
 
 	var opts []grpc.ServerOption
 	server := grpc.NewServer(opts...)
 	proto.RegisterGreetingServer(server, greetingImpl{})
 	if err := server.Serve(lis); err != nil {
-		fmt.Printf("Error while serving the proto: %v\n", err)
+		return fmt.Errorf("Error while serving the proto: %v\n", err)
+	}
+
+	return nil
+}
+
+func (c *RootOptions) setUpCobra() {
+	c.rootCmd = &cobra.Command{
+		Use:  os.Args[0],
+		RunE: c.runServer,
+	}
+
+	c.rootCmd.Flags().IntVarP(&c.port, "port", "p", -1, "Server port to start")
+}
+
+func main() {
+	rootOptions := &RootOptions{}
+	rootOptions.setUpCobra()
+
+	if err := rootOptions.rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
 }
